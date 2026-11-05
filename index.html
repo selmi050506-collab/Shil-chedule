@@ -112,10 +112,10 @@ h3:focus{outline:none}
 .list-add input{min-width:0;flex:1}
 .list-add button{flex:none}
 .list-group-head .chev{font-size:13px}
-.list-manager-add{border:1px dashed var(--line);border-radius:10px;padding:12px;background:var(--bg)}
-.list-manager-add .hint{font-size:12px;color:var(--mut);margin:6px 0 0}
 .list-edit-row{display:flex;gap:6px;align-items:center;width:100%}
 .list-edit-row input{min-width:0;flex:1}
+.hidden-groups{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin-top:10px}
+.sect-head{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:8px}.sect-head h3{margin:0}
 @media(max-width:480px){
  .list-group-head{padding:11px 12px}
  .list-group-body{padding:0 10px 10px}
@@ -180,7 +180,15 @@ async function initDemo() {
 
   const listeners = [];
   const clone = x => JSON.parse(JSON.stringify(x));
-  const notify = () => listeners.forEach(fn => fn());
+  // 데이터가 바뀔 때마다 화면용 상태(S)를 다시 채우고 화면을 새로 그립니다. (이게 빠져 있어서 수정이 화면에 반영되지 않았습니다)
+  const sync = () => {
+    S.sch = clone(data.schedules); S.res = clone(data.results); S.staff = clone(data.staff);
+    S.pjs = clone(data.projects).sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
+    S.people = data.people.map(p => p.id);
+    S.names = Object.fromEntries(data.people.map(p => [p.id, { name:p.name }]));
+    S.cfg = clone(data.config);
+  };
+  const notify = () => { sync(); listeners.forEach(fn => fn()); if (ready) render(); };
   const snap = name => ({docs:(data[name]||[]).map(x=>({id:x.id,data:()=>clone(x)}))});
   db = {
     collection(name) {
@@ -207,10 +215,7 @@ async function initDemo() {
     async me(){return me;}, async id(){return me.id;}, async canEdit(){return true;},
     async profiles(ids){return Object.fromEntries(ids.map(id=>[id,{name:(data.people.find(p=>p.id===id)||{}).name||"직원"}]));}
   };
-  S.sch=clone(data.schedules); S.res=clone(data.results); S.staff=clone(data.staff);
-  S.pjs=clone(data.projects); S.people=data.people.map(p=>p.id);
-  S.names=Object.fromEntries(data.people.map(p=>[p.id,{name:p.name}]));
-  S.cfg=clone(data.config); ready=true; render();
+  sync(); ready = true; render();
 }
 
 const opts = k => (S.cfg && S.cfg[k]) || DEF[k];
@@ -655,16 +660,59 @@ function projForm(id) {
   };
 }
 
+/* ---------- 목록 그룹 (설정) ---------- */
+const BUILTIN = { staff:"참여 인원", metric:"공통 실적 항목", category:"공통 분류 목록" };
+const groupName = (key, fallback) => ((S.cfg && S.cfg.groupNames) || {})[key] || fallback;
+const hiddenGroups = () => (S.cfg && S.cfg.hiddenGroups) || [];
+// 모든 그룹(기본 + 추가)의 [키, 이름] 목록. exceptKey 는 중복 검사에서 자기 자신을 빼기 위한 값입니다.
+const allGroupNames = exceptKey => [...Object.keys(BUILTIN).map(k => [k, groupName(k, BUILTIN[k])]), ...extraGroups().map(g => [g.id, g.name])]
+  .filter(([k]) => k !== exceptKey).map(x => x[1].toLowerCase());
+
+// "그룹 추가" 팝업: 그룹명 + 하위 분류(항목)를 한 번에 입력해서 추가합니다.
+function groupForm() {
+  const items = [""];
+  $("#dlg").innerHTML = `<h3>목록 그룹 추가</h3>
+    <label>그룹명</label><input id="g_n" placeholder="예: 장비 종류">
+    <label>하위 분류 (항목)</label><div id="g_items"></div>
+    <button id="g_add" type="button">분류 추가</button>
+    <p class="m" style="margin:8px 0 0">추가한 그룹은 일정 등록 화면에서 선택 목록으로 나오고, 설정 &gt; 공통 목록 관리에서 계속 수정·삭제할 수 있습니다.</p>
+    <div class="er"></div>
+    <div class="foot"><button id="cx" type="button">취소</button><button class="p" id="sv" type="button">그룹 추가</button></div>`;
+  const read = () => document.querySelectorAll("#g_items .gi").forEach((el, i) => { items[i] = el.value; });
+  const draw = () => {
+    $("#g_items").innerHTML = items.map((v, i) => `<div class="opt" data-i="${i}"><input class="gi" value="${esc(v)}" placeholder="분류 이름 ${i + 1}"><button class="d gx" type="button">삭제</button></div>`).join("");
+    document.querySelectorAll("#g_items .gx").forEach(b => b.onclick = () => { read(); items.splice(+b.closest("[data-i]").dataset.i, 1); if (!items.length) items.push(""); draw(); });
+  };
+  $("#dlg").showModal(); draw();
+  $("#cx").onclick = () => $("#dlg").close();
+  $("#g_add").onclick = () => { read(); items.push(""); draw(); const l = document.querySelectorAll("#g_items .gi"); l[l.length - 1].focus(); };
+  $("#sv").onclick = () => {
+    read();
+    const name = $("#g_n").value.trim();
+    if (!name) return msg("그룹명을 입력해 주세요.");
+    if (allGroupNames().includes(name.toLowerCase())) return msg("같은 이름의 목록이 이미 있습니다.");
+    const clean = [];
+    items.map(x => x.trim()).filter(Boolean).forEach(x => { if (!clean.some(c => c.toLowerCase() === x.toLowerCase())) clean.push(x); });
+    const id = "list_" + Date.now().toString(36);
+    S.sx = S.sx || {}; S.sx["l:" + id] = true;
+    saveConfig({ extraGroups:[...extraGroups(), { id, name, items:clean }] });
+    $("#dlg").close(); toast("그룹을 추가했습니다.");
+  };
+}
+
 function viewSet() {
   S.sx = S.sx || {};
   S.listEdit = S.listEdit || {};
   const isEditingGroup = key => S.listEdit.group === key;
   const isEditingItem = (key, i) => S.listEdit.item === key + "|" + i;
-  const groupName = (key, fallback) => (S.cfg.groupNames || {})[key] || fallback;
+  const isBuiltin = key => key in BUILTIN;
+  const itemsOf = key => isBuiltin(key) ? opts(key) : ((extraGroups().find(g => g.id === key) || {}).items || []);
+  const saveItems = (key, arr) => key === "metric" || key === "category" ? saveConfig({ [key]: arr }) : saveConfig({ extraGroups:extraGroups().map(g => g.id === key ? { ...g, items:arr } : g) });
 
-  const renderGroupNameEditor = (key, name, protectedGroup) => isEditingGroup(key)
+  // 모든 그룹에 그룹명 수정 + 그룹 삭제 버튼이 똑같이 붙습니다.
+  const renderGroupNameEditor = (key, name) => isEditingGroup(key)
     ? `<div class="list-group-tools"><input id="group_name_${esc(key)}" value="${esc(name)}" aria-label="그룹명"><button class="p" data-group-save="${esc(key)}">저장</button><button data-group-cancel="${esc(key)}">취소</button></div>`
-    : `<div class="list-group-tools"><span class="m" style="flex:1">그룹 관리</span><button data-group-edit="${esc(key)}">그룹명 수정</button>${protectedGroup ? '' : `<button class="d" data-group-del="${esc(key)}">그룹 삭제</button>`}</div>`;
+    : `<div class="list-group-tools"><span class="m" style="flex:1">그룹 관리</span><button data-group-edit="${esc(key)}">그룹명 수정</button><button class="d" data-group-del="${esc(key)}">그룹 삭제</button></div>`;
 
   const renderItemRows = (key, arr) => arr.map((name, i) => isEditingItem(key, i)
     ? `<div class="list-row"><div class="list-edit-row"><input id="item_edit_${i}" value="${esc(name)}" aria-label="항목명"><button class="p" data-item-save="${esc(key)}|${i}">저장</button><button data-item-cancel="${esc(key)}">취소</button></div></div>`
@@ -672,9 +720,9 @@ function viewSet() {
 
   const renderItemsEditor = (key, arr) => `${renderItemRows(key, arr)}<div class="list-add"><input id="newitem_${esc(key)}" placeholder="새 항목명"><button class="p" data-item-add="${esc(key)}">항목 추가</button></div>`;
 
-  const renderGroup = (key, name, count, inner, protectedGroup=false) => {
+  const renderGroup = (key, name, count, inner) => {
     const open = !!S.sx["l:"+key];
-    return `<section class="list-group"><div class="list-group-head" role="button" tabindex="0" data-s="l:${esc(key)}" aria-expanded="${open}"><span class="list-title">${esc(name)}<span class="list-count">${count}</span></span><span class="chev">${open ? "▴" : "▾"}</span></div>${open ? `<div class="list-group-body">${renderGroupNameEditor(key,name,protectedGroup)}${inner}</div>` : ""}</section>`;
+    return `<section class="list-group"><div class="list-group-head" role="button" tabindex="0" data-s="l:${esc(key)}" aria-expanded="${open}"><span class="list-title">${esc(name)}<span class="list-count">${count}</span></span><span class="chev">${open ? "▴" : "▾"}</span></div>${open ? `<div class="list-group-body">${renderGroupNameEditor(key,name)}${inner}</div>` : ""}</section>`;
   };
 
   const staffInner = `${S.staff.map((x,i) => isEditingItem("staff",i)
@@ -682,45 +730,62 @@ function viewSet() {
     : `<div class="list-row"><span class="list-row-name">${esc(x.name)}</span><div class="list-row-actions"><button data-staff-edit="${i}">수정</button><button class="d" data-sd="${esc(x.id)}">삭제</button></div></div>`).join("") || '<p class="m">등록된 인원이 없습니다.</p>'}
     <div class="list-add"><input id="n_staff" placeholder="이름"><button class="p" id="sa">인원 추가</button></div>`;
 
+  const hid = hiddenGroups();
   const groups = [
-    renderGroup("staff",groupName("staff","참여 인원"),`${S.staff.length}명`,staffInner,true),
-    renderGroup("metric",groupName("metric","공통 실적 항목"),`${opts("metric").length}개`,renderItemsEditor("metric",opts("metric")),true),
-    renderGroup("category",groupName("category","공통 분류 목록"),`${opts("category").length}개`,renderItemsEditor("category",opts("category")),true),
-    ...extraGroups().map(g=>renderGroup(g.id,g.name,`${(g.items||[]).length}개`,renderItemsEditor(g.id,g.items||[]),false))
-  ].join("");
+    !hid.includes("staff") && renderGroup("staff",groupName("staff",BUILTIN.staff),`${S.staff.length}명`,staffInner),
+    !hid.includes("metric") && renderGroup("metric",groupName("metric",BUILTIN.metric),`${opts("metric").length}개`,renderItemsEditor("metric",opts("metric"))),
+    !hid.includes("category") && renderGroup("category",groupName("category",BUILTIN.category),`${opts("category").length}개`,renderItemsEditor("category",opts("category"))),
+    ...extraGroups().map(g=>renderGroup(g.id,g.name,`${(g.items||[]).length}개`,renderItemsEditor(g.id,g.items||[])))
+  ].filter(Boolean).join("");
 
   $("#body").innerHTML = `<div class="sect"><h3>사업 관리</h3>
     <div id="prbox">${S.pjs.map((p, i) => `<div class="opt prow" data-id="${p.id}"><span class="grip" role="img" aria-label="순서 이동">⋮⋮</span><span class="grow"><span class="no">${i + 1}.</span> <b>${esc(p.name)}</b><br><span class="m">탭: ${tabsOf(p).map(t => esc(t.name) + (t.track === false ? "(실적 제외)" : "")).join(", ") || "없음"}</span></span><button data-pe="${p.id}">수정</button><button class="d" data-pd="${p.id}">삭제</button></div>`).join("") || '<p class="m">등록된 사업이 없습니다.</p>'}</div>
     ${S.pjs.length > 1 ? '<p class="m">⋮⋮ 를 끌어 사업 순서를 바꾸면 일정 등록, 필터, 사업별 실적의 순서에도 똑같이 반영됩니다.</p>' : ""}<button class="p" id="pa">사업 추가</button></div>
-    <section class="sect"><h3>공통 목록 관리</h3><div class="list-manager">${groups}
-      <div class="list-manager-add"><b>새 목록 그룹 추가</b><div class="list-add"><input id="new_group_name" placeholder="예: 장비 종류"><button class="p" id="new_group_add">그룹 추가</button></div><p class="hint">추가한 목록은 일정 등록 화면에서 선택할 수 있습니다.</p></div>
-    </div></section>`;
+    <section class="sect"><div class="sect-head"><h3>공통 목록 관리</h3><button class="p" id="gadd">그룹 추가</button></div>
+      <div class="list-manager">${groups || '<p class="m">표시 중인 목록 그룹이 없습니다. 오른쪽 위 \'그룹 추가\'로 새 그룹을 만들어 주세요.</p>'}</div>
+      ${hid.length ? `<div class="hidden-groups"><span class="m">삭제한 기본 목록:</span>${hid.map(k => `<button data-group-restore="${esc(k)}">${esc(groupName(k, BUILTIN[k] || k))} 복원</button>`).join("")}</div>` : ""}
+    </section>`;
 
   const each = (sel, f) => document.querySelectorAll(sel).forEach(f);
   toggler("sx", "data-s");
   if ($("#prbox .prow")) sortable($("#prbox"), ".prow", ".grip", items => items.forEach((r, i) => { r.querySelector(".no").textContent = (i + 1) + "."; }),
     ids => run(async () => { for (let i = 0; i < ids.length; i++) if ((S.pjs.find(p => p.id === ids[i]) || {}).order !== i) await db.doc("projects/" + ids[i]).update({ order:i }); }));
   $("#pa").onclick = () => projForm();
+  $("#gadd").onclick = () => groupForm();
   each("[data-pe]", b => b.onclick = () => projForm(b.dataset.pe));
   each("[data-pd]", b => b.onclick = () => ask("이 사업을 삭제할까요? 연결된 일정은 사업 미지정으로 남습니다.", () => run(() => db.doc("projects/" + b.dataset.pd).delete())));
 
-  $("#sa").onclick = () => { const v=$("#n_staff").value.trim(); if(!v)return msg("이름을 입력해 주세요."); if(S.staff.some(x=>x.name.toLowerCase()===v.toLowerCase()))return msg("이미 등록된 이름입니다."); clearDraft("n_staff"); run(()=>db.collection("staff").add({name:v})); };
+  if ($("#sa")) $("#sa").onclick = () => { const v=$("#n_staff").value.trim(); if(!v)return msg("이름을 입력해 주세요."); if(S.staff.some(x=>x.name.toLowerCase()===v.toLowerCase()))return msg("이미 등록된 이름입니다."); clearDraft("n_staff"); run(()=>db.collection("staff").add({name:v})); };
   each("[data-staff-edit]", b => b.onclick = () => { S.listEdit.item="staff|"+b.dataset.staffEdit; render(); });
   each("[data-staff-save]", b => b.onclick = () => { const id=b.dataset.staffSave, v=$("#staff_edit_"+CSS.escape(id)).value.trim(); if(!v)return msg("이름을 입력해 주세요."); if(S.staff.some(x=>x.id!==id&&x.name.toLowerCase()===v.toLowerCase()))return msg("이미 등록된 이름입니다."); clearDraft("staff_edit_"+id); S.listEdit={}; run(()=>db.doc("staff/"+id).update({name:v})); });
   each("[data-staff-cancel]", b => b.onclick = () => { clearDraft("staff_edit_"+b.dataset.staffCancel); S.listEdit={}; render(); });
   each("[data-sd]", b => b.onclick = () => ask("이 참여 인원을 삭제할까요?",()=>run(()=>db.doc("staff/"+b.dataset.sd).delete())));
 
-  each("[data-group-edit]", b => b.onclick = e => { e.stopPropagation(); S.listEdit.group=b.dataset.groupEdit; S.sx["l:"+b.dataset.groupEdit]=true; render(); });
-  each("[data-group-cancel]", b => b.onclick = () => { clearDraft("group_name_"+b.dataset.groupCancel); S.listEdit.group=null; render(); });
-  each("[data-group-save]", b => b.onclick = () => { const key=b.dataset.groupSave, v=$("#group_name_"+CSS.escape(key)).value.trim(); if(!v)return msg("그룹명을 입력해 주세요."); const names=[groupName("staff","참여 인원"),groupName("metric","공통 실적 항목"),groupName("category","공통 분류 목록"),...extraGroups().filter(g=>g.id!==key).map(g=>g.name)]; if(names.some(n=>n.toLowerCase()===v.toLowerCase()))return msg("같은 이름의 목록이 이미 있습니다."); clearDraft("group_name_"+key); S.listEdit.group=null; if(["staff","metric","category"].includes(key))saveConfig({groupNames:{...(S.cfg.groupNames||{}),[key]:v}}); else saveConfig({extraGroups:extraGroups().map(g=>g.id===key?{...g,name:v}:g)}); });
-  each("[data-group-del]", b => b.onclick = () => ask("이 목록 그룹과 내부 항목을 삭제할까요? 이미 저장된 일정의 값은 기록으로 남습니다.",()=>saveConfig({extraGroups:extraGroups().filter(g=>g.id!==b.dataset.groupDel)})));
-  $("#new_group_add").onclick = () => { const name=$("#new_group_name").value.trim(); if(!name)return msg("새 목록 이름을 입력해 주세요."); const names=[groupName("staff","참여 인원"),groupName("metric","공통 실적 항목"),groupName("category","공통 분류 목록"),...extraGroups().map(g=>g.name)]; if(names.some(x=>x.toLowerCase()===name.toLowerCase()))return msg("같은 이름의 목록이 이미 있습니다."); const id="list_"+Date.now().toString(36); clearDraft("new_group_name"); saveConfig({extraGroups:[...extraGroups(),{id,name,items:[]}]}); S.sx["l:"+id]=true; };
+  // 그룹명 수정: 자기 자신의 이름은 중복 검사에서 제외합니다. (이전에는 자기 이름과 겹쳐서 막히는 경우가 있었습니다)
+  each("[data-group-edit]", b => b.onclick = e => { e.stopPropagation(); S.listEdit = { group:b.dataset.groupEdit }; S.sx["l:"+b.dataset.groupEdit]=true; render(); const i=document.getElementById("group_name_"+b.dataset.groupEdit); if(i){ i.focus(); i.select(); } });
+  each("[data-group-cancel]", b => b.onclick = () => { clearDraft("group_name_"+b.dataset.groupCancel); S.listEdit={}; render(); });
+  each("[data-group-save]", b => b.onclick = () => {
+    const key=b.dataset.groupSave, input=document.getElementById("group_name_"+key), v=(input?input.value:"").trim();
+    if(!v)return msg("그룹명을 입력해 주세요.");
+    if(allGroupNames(key).includes(v.toLowerCase()))return msg("같은 이름의 목록이 이미 있습니다.");
+    clearDraft("group_name_"+key); S.listEdit={};
+    if(isBuiltin(key)) saveConfig({groupNames:{...((S.cfg&&S.cfg.groupNames)||{}),[key]:v}});
+    else saveConfig({extraGroups:extraGroups().map(g=>g.id===key?{...g,name:v}:g)});
+    toast("그룹명을 수정했습니다.");
+  });
+  // 그룹 삭제: 추가한 그룹은 완전히 삭제, 기본 3개 그룹은 설정 목록에서만 숨기고(복원 가능) 데이터는 그대로 둡니다.
+  each("[data-group-del]", b => b.onclick = () => {
+    const key=b.dataset.groupDel;
+    if(isBuiltin(key)) return ask("이 기본 목록을 설정 화면에서 삭제할까요? 일정 등록 등에서 쓰는 데이터는 그대로 남고, 아래 '삭제한 기본 목록'에서 언제든 복원할 수 있습니다.",()=>{ S.listEdit={}; saveConfig({hiddenGroups:[...hiddenGroups().filter(k=>k!==key),key]}); toast("그룹을 삭제했습니다."); });
+    ask("이 목록 그룹과 내부 항목을 삭제할까요? 이미 저장된 일정의 값은 기록으로 남습니다.",()=>{ S.listEdit={}; saveConfig({extraGroups:extraGroups().filter(g=>g.id!==key)}); toast("그룹을 삭제했습니다."); });
+  });
+  each("[data-group-restore]", b => b.onclick = () => saveConfig({hiddenGroups:hiddenGroups().filter(k=>k!==b.dataset.groupRestore)}));
 
-  each("[data-item-add]", b => b.onclick=()=>{const key=b.dataset.itemAdd, input=$("#newitem_"+CSS.escape(key)), v=input.value.trim(); if(!v)return msg("항목명을 입력해 주세요."); const arr=key==="metric"||key==="category"?opts(key):(extraGroups().find(g=>g.id===key)||{}).items||[]; if(arr.some(x=>String(x).toLowerCase()===v.toLowerCase()))return msg("이미 등록된 항목입니다."); clearDraft("newitem_"+key); if(key==="metric"||key==="category")saveConfig({[key]:[...arr,v]}); else saveConfig({extraGroups:extraGroups().map(g=>g.id===key?{...g,items:[...(g.items||[]),v]}:g)}); });
+  each("[data-item-add]", b => b.onclick=()=>{const key=b.dataset.itemAdd, input=$("#newitem_"+CSS.escape(key)), v=input.value.trim(); if(!v)return msg("항목명을 입력해 주세요."); const arr=itemsOf(key); if(arr.some(x=>String(x).toLowerCase()===v.toLowerCase()))return msg("이미 등록된 항목입니다."); clearDraft("newitem_"+key); saveItems(key,[...arr,v]); });
   each("[data-item-edit]", b => b.onclick=()=>{const [key,i]=b.dataset.itemEdit.split("|"); S.listEdit.item=key+"|"+i; render();});
-  each("[data-item-cancel]", b => b.onclick=()=>{const key=b.dataset.itemCancel; const i=(S.listEdit.item||"").split("|")[1]; clearDraft("item_edit_"+i); S.listEdit.item=null; render();});
-  each("[data-item-save]", b => b.onclick=()=>{const [key,i]=b.dataset.itemSave.split("|"), v=$("#item_edit_"+i).value.trim(); if(!v)return msg("항목명을 입력해 주세요."); const arr=(key==="metric"||key==="category"?opts(key):(extraGroups().find(g=>g.id===key)||{}).items||[]).slice(); if(arr.some((x,j)=>j!==+i&&x.toLowerCase()===v.toLowerCase()))return msg("중복된 항목명입니다."); arr[+i]=v; clearDraft("item_edit_"+i); S.listEdit.item=null; if(key==="metric"||key==="category")saveConfig({[key]:arr}); else saveConfig({extraGroups:extraGroups().map(g=>g.id===key?{...g,items:arr}:g)}); });
-  each("[data-item-del]", b => b.onclick=()=>{const [key,i]=b.dataset.itemDel.split("|"); ask("이 항목을 삭제할까요? 기존 일정에 저장된 값은 기록으로 남습니다.",()=>{const arr=(key==="metric"||key==="category"?opts(key):(extraGroups().find(g=>g.id===key)||{}).items||[]).filter((_,j)=>j!==+i); if(key==="metric"||key==="category")saveConfig({[key]:arr}); else saveConfig({extraGroups:extraGroups().map(g=>g.id===key?{...g,items:arr}:g)});});});
+  each("[data-item-cancel]", b => b.onclick=()=>{const i=(S.listEdit.item||"").split("|")[1]; clearDraft("item_edit_"+i); S.listEdit.item=null; render();});
+  each("[data-item-save]", b => b.onclick=()=>{const [key,i]=b.dataset.itemSave.split("|"), v=$("#item_edit_"+i).value.trim(); if(!v)return msg("항목명을 입력해 주세요."); const arr=itemsOf(key).slice(); if(arr.some((x,j)=>j!==+i&&x.toLowerCase()===v.toLowerCase()))return msg("중복된 항목명입니다."); arr[+i]=v; clearDraft("item_edit_"+i); S.listEdit.item=null; saveItems(key,arr); });
+  each("[data-item-del]", b => b.onclick=()=>{const [key,i]=b.dataset.itemDel.split("|"); ask("이 항목을 삭제할까요? 기존 일정에 저장된 값은 기록으로 남습니다.",()=>saveItems(key,itemsOf(key).filter((_,j)=>j!==+i)));});
 }
 
 
