@@ -1,0 +1,715 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>공유 스케줄러</title>
+<style>
+:root{--bg:#f4f5f3;--card:#fff;--tx:#1d2420;--mut:#68736c;--line:#dfe3df;--pri:#1f6f5c;--prit:#fff;--bad:#c0392b;--tag:#e6efe9;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+@media(prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#131715;--card:#1b211e;--tx:#e6ebe7;--mut:#93a09a;--line:#2a332e;--pri:#4fb597;--prit:#0d1411;--bad:#ef7d6f;--tag:#25312b;color-scheme:dark}}
+:root[data-theme="dark"]{--bg:#131715;--card:#1b211e;--tx:#e6ebe7;--mut:#93a09a;--line:#2a332e;--pri:#4fb597;--prit:#0d1411;--bad:#ef7d6f;--tag:#25312b;color-scheme:dark}
+*{box-sizing:border-box}[hidden]{display:none!important}
+body{margin:0;background:var(--bg);color:var(--tx);font:15px/1.5 "Pretendard","Apple SD Gothic Neo","Malgun Gothic",sans-serif}
+button,input,select,textarea{font:inherit;color:inherit}
+button{cursor:pointer;border:1px solid var(--line);background:var(--card);border-radius:6px;padding:6px 12px}
+button.p{background:var(--pri);color:var(--prit);border-color:var(--pri)}
+button.d{color:var(--bad)}button.p.d{color:#fff;background:var(--bad);border-color:var(--bad)}
+button.l{border:0;background:none;padding:4px 6px;color:var(--mut)}
+button.st{padding:3px 12px;border-radius:14px;font-size:13px;border-color:var(--pri);color:var(--pri)}
+button.st.on{background:var(--pri);color:var(--prit)}
+:focus-visible{outline:2px solid var(--pri);outline-offset:1px}
+input,select,textarea{width:100%;padding:7px 9px;border:1px solid var(--line);border-radius:6px;background:var(--card)}
+label{display:block;margin:10px 0 3px;color:var(--mut);font-size:13px}
+.wrap{max-width:860px;margin:0 auto;padding:14px}
+header{display:flex;flex-wrap:wrap;gap:8px;align-items:baseline;justify-content:space-between;margin-bottom:10px}
+h1{font-size:20px;margin:0}h3{margin:0 0 8px;font-size:16px}
+nav{display:flex;gap:2px;border-bottom:1px solid var(--line);margin-bottom:12px;overflow-x:auto}
+nav button{border:0;border-bottom:2px solid transparent;border-radius:0;background:none;padding:8px 12px;white-space:nowrap}
+nav button.on{border-bottom-color:var(--pri);color:var(--pri);font-weight:600}
+.bar{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:12px;align-items:center}
+.bar>*{width:auto;flex:0 1 auto}.bar .sp{flex:1}
+.card{background:var(--card);border:1px solid var(--line);border-radius:8px;padding:12px;margin-bottom:8px}
+.card.done .ct{text-decoration:line-through;color:var(--mut)}
+.t .st{font-weight:400;margin-left:4px}
+.res.anim{animation:dn .18s ease}@keyframes dn{from{opacity:0;transform:translateY(-6px)}to{opacity:1;transform:none}}@media(prefers-reduced-motion:reduce){.res.anim{animation:none}}
+.row{display:flex;gap:10px;align-items:flex-start}.grow{flex:1;min-width:0}
+.t{font-weight:600}.m{color:var(--mut);font-size:13px}
+.tag{display:inline-block;background:var(--tag);border-radius:4px;padding:0 7px;font-size:12px;margin-right:4px}
+.acts{display:flex;flex:none}
+.res{margin-top:8px;padding-top:8px;border-top:1px dashed var(--line)}
+.it{display:flex;justify-content:space-between;gap:8px;padding:3px 0;font-size:14px}
+table{width:100%;border-collapse:collapse;background:var(--card);border:1px solid var(--line)}
+th,td{padding:7px 10px;border-bottom:1px solid var(--line);text-align:right;white-space:nowrap}
+th:first-child,td:first-child{text-align:left}th{background:var(--tag);font-size:13px}
+tr.tot td{font-weight:600}.scroll{overflow-x:auto;margin-bottom:6px}
+.empty{text-align:center;color:var(--mut);padding:30px 0}
+dialog{border:1px solid var(--line);border-radius:10px;background:var(--card);color:var(--tx);width:min(440px,94vw);padding:16px;max-height:92vh;overflow:auto}
+dialog::backdrop{background:rgba(0,0,0,.45)}
+.chk{display:flex;flex-wrap:wrap;gap:4px 14px}
+.chk label{display:flex;gap:5px;align-items:center;margin:0;color:var(--tx);font-size:14px}.chk input{width:auto}
+.foot{display:flex;justify-content:flex-end;gap:8px;margin-top:14px}
+.opt{display:flex;gap:8px;margin-bottom:6px;align-items:center}.opt .grow{padding:6px 0}
+.er{color:var(--bad);font-size:13px;min-height:18px;margin-top:6px}
+.sect{margin-bottom:22px}
+#toast{position:fixed;left:50%;bottom:calc(18px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);background:var(--tx);color:var(--bg);padding:8px 14px;border-radius:8px;z-index:10;font-size:14px;max-width:90vw}
+.mnav{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px}
+.cal{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:1px;background:var(--line);border:1px solid var(--line);border-radius:8px;overflow:hidden}
+.cal .h{background:var(--tag);text-align:center;font-size:12px;padding:4px 0;color:var(--mut)}
+.cal .d{background:var(--card);min-height:68px;padding:3px;border:0;border-radius:0;text-align:left;display:flex;flex-direction:column;gap:2px;overflow:hidden}
+.cal .d.o{background:var(--bg)}.cal .d.sel{outline:2px solid var(--pri);outline-offset:-2px}
+.cal .n{font-size:12px;align-self:flex-start}
+.cal .d.today .n{background:var(--pri);color:var(--prit);border-radius:10px;padding:0 6px}
+.cal .e{font-size:11px;line-height:1.3;background:var(--tag);border-radius:3px;padding:0 3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.cal .e.done{text-decoration:line-through;opacity:.6}.cal .more{font-size:11px;color:var(--mut)}
+input[type=date],input[type=time],input[type=month]{min-width:0;max-width:100%;-webkit-appearance:none;appearance:none;min-height:38px;text-align:left}
+button{white-space:nowrap}
+.opt input,.opt select{width:auto;flex:1;min-width:0}
+.two{display:grid;grid-template-columns:1fr 1fr;gap:8px}.two>div{min-width:0}
+.rr{display:grid;grid-template-columns:1fr 84px auto;gap:6px;margin-bottom:8px}.rr .rn{grid-column:1/-1}.rr select,.rr input{min-width:0}
+.pb{margin:8px 0}.pb .lab{display:flex;justify-content:space-between;font-size:13px;margin-bottom:3px}
+.track{height:14px;background:var(--tag);border-radius:7px;overflow:hidden}
+.track i{display:block;height:100%;background:var(--pri);border-radius:7px}.track i.full{background:#2e9e5b}
+h3:focus{outline:none}
+.ckl{display:flex;gap:6px;align-items:center;color:var(--tx);font-size:14px}
+.acc{border:1px solid var(--line);border-radius:8px;background:var(--card);margin-bottom:8px;overflow:hidden}
+.acc.l2{background:var(--bg);margin:0 0 6px}
+.ah{display:flex;justify-content:space-between;align-items:center;gap:8px;padding:12px;cursor:pointer;font-weight:600}
+.ab{padding:0 12px 12px}.chev{color:var(--mut);flex:none}
+.pj{padding:0}.pj.drag{box-shadow:0 6px 18px rgba(0,0,0,.35)}
+.ph,.th{display:flex;align-items:center;gap:8px;cursor:pointer}.ph{padding:12px}
+.kids{padding:0 12px 12px}
+.tb{border-top:1px solid var(--line);padding:10px 0 4px}.tb.drag{background:var(--tag);border-radius:6px}
+.th{padding:2px 0 6px}.no{font-weight:600}
+.grip{touch-action:none;cursor:grab;padding:8px 6px;margin:-8px 0 -8px -6px;color:var(--mut);font-size:18px;line-height:1;user-select:none;-webkit-user-select:none;flex:none}
+.ab.anim,.kids.anim,.scroll.anim{animation:dn .18s ease}
+@media(prefers-reduced-motion:reduce){.ab.anim,.kids.anim,.scroll.anim{animation:none}}
+.cal .d{color:var(--tx)}
+:root{--sat:#2f6fe4}
+@media(prefers-color-scheme:dark){:root:not([data-theme="light"]){--sat:#7aa7ff}}
+:root[data-theme="dark"]{--sat:#7aa7ff}
+.cal .h.sun,.cal .d.sun .n,.cal .d .hn{color:var(--bad)}
+.cal .h.sat,.cal .d.sat .n{color:var(--sat)}
+.cal .d.today .n{color:var(--prit)}
+.cal .hn{font-size:10px;line-height:1.2;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.grip{padding:12px 10px;margin:-12px 0 -12px -8px}
+.prow.drag,.card.drag{background:var(--tag);border-radius:8px;box-shadow:0 6px 18px rgba(0,0,0,.3)}
+
+/* Compact, touch-friendly settings list manager */
+.list-manager{display:grid;gap:10px}
+.list-group{border:1px solid var(--line);border-radius:10px;background:var(--card);overflow:hidden}
+.list-group-head{display:flex;align-items:center;gap:8px;padding:12px 14px;min-height:54px}
+.list-group-head .list-title{font-weight:650;flex:1;min-width:0}
+.list-count{color:var(--mut);font-size:13px;font-weight:400;margin-left:5px}
+.list-group-body{padding:0 12px 12px}
+.list-group-tools{display:flex;align-items:center;gap:6px;padding:9px 0;border-bottom:1px solid var(--line);margin-bottom:6px}
+.list-group-tools input{min-width:0;flex:1}
+.list-row{display:flex;align-items:center;gap:8px;padding:8px 0;border-bottom:1px solid var(--line)}
+.list-row:last-of-type{border-bottom:0}
+.list-row-name{flex:1;min-width:0;overflow-wrap:anywhere}
+.list-row-actions{display:flex;gap:5px;flex:none}
+.list-row-actions button,.list-group-head button{padding:6px 10px;font-size:13px}
+.list-add{display:flex;gap:7px;padding-top:10px}
+.list-add input{min-width:0;flex:1}
+.list-add button{flex:none}
+.list-group-head .chev{font-size:13px}
+.list-manager-add{border:1px dashed var(--line);border-radius:10px;padding:12px;background:var(--bg)}
+.list-manager-add .hint{font-size:12px;color:var(--mut);margin:6px 0 0}
+.list-edit-row{display:flex;gap:6px;align-items:center;width:100%}
+.list-edit-row input{min-width:0;flex:1}
+@media(max-width:480px){
+ .list-group-head{padding:11px 12px}
+ .list-group-body{padding:0 10px 10px}
+ .list-row{gap:6px}
+ .list-row-actions{gap:4px}
+ .list-row-actions button,.list-group-head button{padding:7px 9px;font-size:12px}
+ .list-add{gap:6px}
+}
+
+</style>
+</head>
+<body>
+<div class="wrap" style="padding-bottom:0"><div style="background:#fff4d6;color:#795b13;border:1px solid #ead79a;border-radius:8px;padding:9px 12px;font-size:13px">미리보기 모드 · 샘플 데이터이며 실제 직원 계정이나 서버와 연결되지 않습니다. 수정 내용은 이 브라우저 세션의 데모 화면에만 반영됩니다.</div></div><div id="app"><div class="wrap"><p class="m">화면을 준비하고 있습니다…</p></div></div>
+<dialog id="dlg"></dialog><dialog id="cfm"></dialog><div id="toast" hidden></div>
+<script>
+const $ = s => document.querySelector(s);
+const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const DEF = { category: ["회의","현장","내근","기타"], metric: ["건수","시간","금액"] };
+const today = () => { const d = new Date(); return new Date(d - d.getTimezoneOffset() * 60000).toISOString().slice(0, 10); };
+const S = { tab:"cal", day:today(), month:today().slice(0,7), st:"all", pj:"all", open:{}, sch:[], res:[], people:[], staff:[], pjs:[], cfg:null, names:{}, canEdit:false };
+let db, user, me, ready = false;
+
+// 이 환경에서는 브라우저 기본 확인창(confirm/alert)이 막혀 있어서 화면 안의 창으로 대신합니다.
+const toast = m => { const t = $("#toast"); t.textContent = m; t.hidden = false; clearTimeout(toast.h); toast.h = setTimeout(() => t.hidden = true, 3500); };
+const msg = m => { const e = document.querySelector("#dlg[open] .er"); e ? e.textContent = m : toast(m); };
+const ask = (m, f, label = "삭제") => { const c = $("#cfm"); c.innerHTML = `<p style="margin:0">${esc(m)}</p><div class="foot"><button id="cn">취소</button><button class="p d" id="ok">${esc(label)}</button></div>`; c.showModal(); $("#cn").onclick = () => c.close(); $("#ok").onclick = () => { c.close(); f(); }; };
+const run = async f => { try { await f(); } catch (e) { msg("저장하지 못했습니다: " + (e.message || e)); } };
+
+// 미리보기 전용 데모 데이터입니다. 실제 계정/서버와 연결되지 않습니다.
+async function initDemo() {
+  me = { id:"demo-user", name:"홍길동" };
+  S.canEdit = true;
+
+  const data = {
+    schedules: [
+      {id:"s1", date:today(), time:"09:30", title:"주간 업무회의", category:"회의", projectId:"p1", status:"planned", staffIds:["u1","u2"], memo:"주요 진행 상황 공유"},
+      {id:"s2", date:today(), time:"13:00", title:"현장 안전점검", category:"현장", projectId:"p2", status:"planned", staffIds:["u2","u3"], memo:"안전시설 및 작업환경 확인"},
+      {id:"s3", date:today(), time:"15:00", title:"보고서 작성", category:"내근", projectId:"p1", status:"done", staffIds:["u1"], memo:"월간 실적 보고"},
+      {id:"s4", date:(()=>{const d=new Date();d.setDate(d.getDate()+1);return new Date(d-d.getTimezoneOffset()*60000).toISOString().slice(0,10)})(), time:"10:00", title:"협력업체 협의", category:"회의", projectId:"p2", status:"planned", staffIds:["u1","u3"], memo:"일정 및 작업 범위 조율"}
+    ],
+    results: [
+      {id:"r1", scheduleId:"s3", userId:"demo-user", metric:"건수", value:3, memo:"보고서 완료"},
+      {id:"r2", scheduleId:"s3", userId:"u2", metric:"시간", value:2, memo:"검토 지원"}
+    ],
+    staff: [
+      {id:"u1", name:"홍길동"},{id:"u2", name:"김민수"},{id:"u3", name:"이서연"}
+    ],
+    projects: [
+      {id:"p1", name:"본사 업무지원", order:0, tabs:[
+        {name:"회의",track:true,metrics:["건수","시간"]},
+        {name:"내근",track:true,metrics:["건수","시간"]},
+        {name:"기타",track:true,metrics:["건수","시간"]}
+      ]},
+      {id:"p2", name:"현장 안전관리", order:1, tabs:[
+        {name:"현장",track:true,metrics:["건수","시간"]},
+        {name:"회의",track:true,metrics:["건수","시간"]}
+      ]}
+    ],
+    people: [{id:"demo-user",name:"홍길동"},{id:"u2",name:"김민수"},{id:"u3",name:"이서연"}],
+    config: {category:["회의","현장","내근","기타"],metric:["건수","시간","금액"], extraGroups:[] }
+  };
+
+  const listeners = [];
+  const clone = x => JSON.parse(JSON.stringify(x));
+  const notify = () => listeners.forEach(fn => fn());
+  const snap = name => ({docs:(data[name]||[]).map(x=>({id:x.id,data:()=>clone(x)}))});
+  db = {
+    collection(name) {
+      return {
+        onSnapshot(fn) { listeners.push(()=>fn(snap(name))); fn(snap(name)); return ()=>{}; },
+        async add(row) { const id="demo-"+Math.random().toString(36).slice(2,9); (data[name] ||= []).push({id,...clone(row)}); notify(); return {id}; }
+      };
+    },
+    doc(path) {
+      const [name,id] = path.split("/");
+      return {
+        onSnapshot(fn) {
+          const send=()=>{ const item=name==="config" ? data.config : (data[name]||[]).find(x=>x.id===id);
+            fn({exists:!!item,data:()=>clone(item||{})}); };
+          listeners.push(send); send(); return ()=>{};
+        },
+        async set(row) { if(name==="config") data.config=clone(row); else { const arr=data[name]||[]; const i=arr.findIndex(x=>x.id===id); if(i>=0) arr[i]={...arr[i],...clone(row)}; else arr.push({id,...clone(row)}); } notify(); },
+        async update(row) { const item=(data[name]||[]).find(x=>x.id===id); if(item) Object.assign(item,clone(row)); notify(); },
+        async delete() { data[name]=(data[name]||[]).filter(x=>x.id!==id); notify(); }
+      };
+    }
+  };
+  user = {
+    async me(){return me;}, async id(){return me.id;}, async canEdit(){return true;},
+    async profiles(ids){return Object.fromEntries(ids.map(id=>[id,{name:(data.people.find(p=>p.id===id)||{}).name||"직원"}]));}
+  };
+  S.sch=clone(data.schedules); S.res=clone(data.results); S.staff=clone(data.staff);
+  S.pjs=clone(data.projects); S.people=data.people.map(p=>p.id);
+  S.names=Object.fromEntries(data.people.map(p=>[p.id,{name:p.name}]));
+  S.cfg=clone(data.config); ready=true; render();
+}
+
+const opts = k => (S.cfg && S.cfg[k]) || DEF[k];
+const extraGroups = () => (S.cfg && S.cfg.extraGroups) || [];
+const saveConfig = patch => run(() => db.doc("config/options").set({ ...S.cfg, ...patch }));
+const nm = id => (S.staff.find(x => x.id === id) || {}).name || (S.names[id] && S.names[id].name) || "이름 없음";
+const pjName = id => (S.pjs.find(p => p.id === id) || {}).name || "";
+
+const optList = (arr, sel) => arr.map(c => `<option ${c === sel ? "selected" : ""}>${esc(c)}</option>`).join("");
+const pjOpts = sel => `<option value=""></option>` + S.pjs.map(p => `<option value="${p.id}" ${p.id === sel ? "selected" : ""}>${esc(p.name)}</option>`).join("");
+
+// 화면을 다시 그릴 때 입력 중인 값과 편집 상태를 보존합니다.
+// 아코디언을 접었다 펴거나 다른 설정을 눌러도 저장 전 입력이 사라지지 않습니다.
+const UI_DRAFTS = Object.create(null);
+const rememberDrafts = root => {
+  if (!root) return;
+  root.querySelectorAll("input[id], textarea[id], select[id]").forEach(el => {
+    if (el.type === "checkbox" || el.type === "radio") UI_DRAFTS[el.id] = { type:el.type, value:el.checked };
+    else UI_DRAFTS[el.id] = { type:el.tagName.toLowerCase(), value:el.value };
+  });
+};
+const restoreDrafts = root => {
+  if (!root) return;
+  root.querySelectorAll("input[id], textarea[id], select[id]").forEach(el => {
+    const draft = UI_DRAFTS[el.id];
+    if (!draft) return;
+    if (draft.type === "checkbox" || draft.type === "radio") el.checked = !!draft.value;
+    else el.value = draft.value;
+  });
+};
+const clearDraft = id => { if (!id) return; delete UI_DRAFTS[id]; const el = document.getElementById(id); if (el && "value" in el) el.value = ""; };
+
+function render() {
+  if (!ready || !me) return;
+  const app = $("#app");
+  rememberDrafts(app);
+  const tabs = [["cal","달력"],["sch","일정 목록"],["sum","사업별 실적"],["set","설정"]];
+  app.innerHTML = `<div class="wrap"><header><h1>공유 스케줄러</h1><span class="m">${esc(me.name)}</span></header>
+    <nav>${tabs.map(([k,v]) => `<button class="${S.tab===k?"on":""}" data-t="${k}">${v}</button>`).join("")}</nav><div id="body"></div></div>`;
+  document.querySelectorAll("nav button").forEach(b => b.onclick = () => { S.tab = b.dataset.t; render(); });
+  ({ cal: viewCal, sch: viewSch, sum: viewSum, set: viewSet })[S.tab]();
+  restoreDrafts(app);
+}
+
+
+
+function viewSch() {
+  const list = S.sch.filter(s => (s.date||"").startsWith(S.month) && (S.st==="all"||s.status===S.st) && (S.pj==="all"||(s.projectId||"")===(S.pj==="none"?"":S.pj)))
+    .sort((a, b) => byTime(b, a));
+  $("#body").innerHTML = `<div class="bar"><input type="month" id="mo" value="${S.month}">
+    <select id="fs"><option value="all">전체 상태</option><option value="planned">예정</option><option value="done">완료</option></select>
+    <select id="fp"><option value="all">전체 사업</option>${S.pjs.map(p=>`<option value="${p.id}">${esc(p.name)}</option>`).join("")}<option value="none">사업 미지정</option></select>
+    <span class="sp"></span><button class="p" id="add">일정 등록</button></div>
+    ${list.length ? list.map(card).join("") : '<div class="empty">이 조건에 해당하는 일정이 없습니다.</div>'}`;
+  $("#fs").value = S.st; $("#fp").value = S.pj;
+  $("#mo").onchange = e => { S.month = e.target.value || S.month; render(); };
+  $("#fs").onchange = e => { S.st = e.target.value; render(); };
+  $("#fp").onchange = e => { S.pj = e.target.value; render(); };
+  $("#add").onclick = () => schForm();
+  bindCards();
+}
+
+
+function resForm(schId, resId) {
+  const r = S.res.find(x => x.id === resId) || { metric:"", value:"", memo:"" }, sid = schId || r.scheduleId, s = S.sch.find(x => x.id === sid) || {};
+  $("#dlg").innerHTML = `<h3>${resId?"실적 수정":"내 실적 등록"}</h3><div class="m">${esc(s.title)}${pjName(s.projectId)?" · "+esc(pjName(s.projectId)):""}</div>
+    <label>실적 항목</label><select id="r_m">${optList(metricsFor(s.projectId, s.category), r.metric)}</select>
+    <label>값</label><input id="r_v" type="number" step="any" value="${esc(r.value)}">
+    <label>메모</label><input id="r_n" value="${esc(r.memo)}"><div class="er"></div>
+    <div class="foot"><button id="cx">취소</button><button class="p" id="sv">${resId?"수정 저장":"실적 등록"}</button></div>`;
+  $("#dlg").showModal();
+  $("#cx").onclick = () => $("#dlg").close();
+  $("#sv").onclick = () => {
+    const row = { metric:$("#r_m").value, value:parseFloat($("#r_v").value), memo:$("#r_n").value.trim() };
+    if (!row.metric || isNaN(row.value)) return msg("실적 항목과 값을 입력해 주세요.");
+    run(async () => { if (resId) await db.doc("results/" + resId).update(row); else await db.collection("results").add({ ...row, scheduleId:sid, userId:me.id });
+      S.open[sid] = true; $("#dlg").close(); });
+  };
+}
+
+
+
+const tabsOf = p => {
+  if (!p) return [];
+  if (p.tabs) return p.tabs;
+  const cats = p.categories && p.categories.length ? p.categories : opts("category");
+  return cats.map((n, i) => ({ name:n, track:!(p.noRes || []).includes(n), metrics:p.metrics || [], targets:i === 0 ? (p.targets || {}) : {} }));
+};
+const tabOf = (pid, cat) => tabsOf(S.pjs.find(x => x.id === pid)).find(t => t.name === cat);
+const catsFor = id => { const p = S.pjs.find(x => x.id === id); return p ? tabsOf(p).map(t => t.name) : opts("category"); };
+const tracks = s => { const t = tabOf(s.projectId, s.category); return !t || t.track !== false; };
+const metricsFor = (id, cat) => { const t = tabOf(id, cat), p = S.pjs.find(x => x.id === id);
+  return t && t.metrics && t.metrics.length ? t.metrics : (p && p.metrics && p.metrics.length ? p.metrics : opts("metric")); };
+
+function byTime(a, b) { return ((a.date || "") + (a.time || "")).localeCompare((b.date || "") + (b.time || "")); }
+
+
+
+
+
+
+const reorder = (full, vis, now) => {
+  const out = full.slice();
+  full.map((x, i) => vis.includes(x) ? i : -1).filter(i => i >= 0).forEach((slot, k) => { out[slot] = now[k]; });
+  return out;
+};
+
+// 손가락/마우스로 ⋮⋮ 손잡이를 끌어 순서를 바꾸는 간단한 정렬 기능
+const toggler = (store, attr) => document.querySelectorAll("[" + attr + "]").forEach(h => {
+  const go = () => { const k = h.getAttribute(attr); S[store][k] = !S[store][k]; S.anim = S[store][k] ? k : null; render(); S.anim = null; };
+  h.onclick = go; h.onkeydown = e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); go(); } };
+});
+
+
+
+// 모달이 열릴 때 첫 입력칸(드롭박스·키보드)이 자동으로 활성화되지 않게, 제목을 처음 포커스 대상으로 지정합니다.
+(() => {
+  const sm = HTMLDialogElement.prototype.showModal;
+  HTMLDialogElement.prototype.showModal = function () {
+    const h = this.querySelector("h3");
+    if (h) { h.tabIndex = -1; h.setAttribute("autofocus", ""); }
+    sm.call(this);
+    if (h) h.focus({ preventScroll: true });
+  };
+})();
+
+// ⋮⋮ 손잡이를 끌어 순서를 바꿉니다. 요소를 옮기지 않고 CSS order만 바꿔서 모바일에서도 끊기지 않습니다.
+function sortable(box, itemSel, handleSel, after, done) {
+  const key = x => x.dataset.key ?? x.dataset.id ?? x.dataset.i;
+  const sorted = () => [...box.children].filter(x => x.matches(itemSel)).sort((a, b) => (+a.style.order || 0) - (+b.style.order || 0));
+  box.style.display = "flex"; box.style.flexDirection = "column";
+  box.querySelectorAll(handleSel).forEach(h => {
+    h.onpointerdown = e => {
+      e.preventDefault(); e.stopPropagation();
+      const item = h.closest(itemSel), start = sorted().map(key).join("\n"), sc = box.closest("dialog") || window;
+      sorted().forEach((x, i) => { x.style.order = i; });
+      h.setPointerCapture(e.pointerId); item.classList.add("drag");
+      const mv = ev => {
+        const y = ev.clientY;
+        if (y < 90) sc.scrollBy(0, -14); else if (y > innerHeight - 90) sc.scrollBy(0, 14);
+        const others = sorted().filter(x => x !== item), at = others.findIndex(s => { const r = s.getBoundingClientRect(); return y < r.top + r.height / 2; });
+        const seq = at < 0 ? [...others, item] : [...others.slice(0, at), item, ...others.slice(at)];
+        if (seq.some((x, i) => (+x.style.order || 0) !== i)) { seq.forEach((x, i) => { x.style.order = i; }); after(seq); }
+      };
+      const up = () => {
+        h.removeEventListener("pointermove", mv); h.removeEventListener("pointerup", up); h.removeEventListener("pointercancel", up);
+        item.classList.remove("drag");
+        const now = sorted().map(key); if (now.join("\n") !== start) done(now);
+      };
+      h.addEventListener("pointermove", mv); h.addEventListener("pointerup", up); h.addEventListener("pointercancel", up);
+    };
+    h.onclick = e => e.stopPropagation();
+  });
+}
+
+/* ---------- 대한민국 공휴일 ---------- */
+const HOL_X = { "2024-04-10":"선거일", "2024-10-01":"임시공휴일", "2025-01-27":"임시공휴일", "2025-06-03":"선거일", "2026-06-03":"선거일", "2028-04-12":"선거일" };
+const HOL_CACHE = {};
+function krHolidays(y) {
+  if (HOL_CACHE[y]) return HOL_CACHE[y];
+  const DAY = 864e5, D = (mo, d) => Date.UTC(y, mo - 1, d, 12), iso = t => new Date(t).toISOString().slice(0, 10), wk = t => new Date(t).getUTCDay();
+  const raw = [];
+  const add = (days, name) => raw.push({ days, name });
+  add([D(1, 1)], "신정"); add([D(3, 1)], "삼일절"); add([D(5, 5)], "어린이날"); add([D(6, 6)], "현충일");
+  add([D(8, 15)], "광복절"); add([D(10, 3)], "개천절"); add([D(10, 9)], "한글날"); add([D(12, 25)], "성탄절");
+  if (y >= 2026) { add([D(5, 1)], "노동절"); add([D(7, 17)], "제헌절"); }
+  try {
+    const f = new Intl.DateTimeFormat("en-u-ca-chinese", { timeZone: "Asia/Seoul", month: "numeric", day: "numeric" });
+    for (let t = D(1, 1); t <= D(12, 31); t += DAY) {
+      const p = f.formatToParts(new Date(t)), mo = p.find(x => x.type === "month").value, dd = +p.find(x => x.type === "day").value;
+      if (mo === "1" && dd === 1) add([t - DAY, t, t + DAY], "설날");
+      if (mo === "4" && dd === 8) add([t], "부처님오신날");
+      if (mo === "8" && dd === 15) add([t - DAY, t, t + DAY], "추석");
+    }
+  } catch (e) {}
+  const cover = {}; raw.forEach(g => g.days.forEach(t => { cover[t] = (cover[t] || 0) + 1; }));
+  const groups = [];
+  raw.forEach(g => { const k = g.days.join(), m = groups.find(x => x.days.join() === k); if (m) m.name += "·" + g.name; else groups.push({ ...g }); });
+  const names = {}; groups.forEach(g => g.days.forEach(t => { const k = iso(t); names[k] = names[k] ? names[k] + "·" + g.name : g.name; }));
+  const noSub = ["신정", "현충일"];
+  groups.sort((a, b) => a.days[0] - b.days[0]).forEach(g => {
+    if (g.name.split("·").every(n => noSub.includes(n))) return;
+    const multi = g.days.length > 1, own = g.days.some(t => wk(t) === 0 || (!multi && wk(t) === 6)), ov = !g.ovDone && g.days.some(t => cover[t] > 1);
+    if (!own && !ov) return;
+    if (ov) groups.forEach(o => { if (o !== g && o.days.some(t => g.days.includes(t))) o.ovDone = true; });
+    let t = g.days[g.days.length - 1] + DAY;
+    while (wk(t) === 0 || wk(t) === 6 || iso(t) in names) t += DAY;
+    names[iso(t)] = "대체공휴일";
+  });
+  Object.keys(HOL_X).forEach(k => { if (k.startsWith(y + "-") && !names[k]) names[k] = HOL_X[k]; });
+  return (HOL_CACHE[y] = names);
+}
+
+/* ---------- 실적 줄 공통 ---------- */
+const rrow = r => (!r.id || r.userId === me.id || S.canEdit)
+  ? `<div class="rr" data-rid="${r.id || ""}"><select class="rm" data-v="${esc(r.metric)}"></select><input class="rv" type="number" step="any" value="${esc(r.value)}" placeholder="값" aria-label="값"><button class="d rx" type="button">삭제</button><input class="rn" value="${esc(r.memo)}" placeholder="메모"></div>`
+  : `<div class="it m">${esc(nm(r.userId))} · ${esc(r.metric)} ${esc(r.value)}</div>`;
+const fillSel = (box, ms) => box.querySelectorAll(".rm").forEach(sel => { const v = sel.value || sel.dataset.v || ""; sel.innerHTML = optList(!v || ms.includes(v) ? ms : [...ms, v], v); sel.dataset.v = ""; });
+const bindRows = box => box.querySelectorAll(".rx").forEach(b => b.onclick = () => { const r = b.closest(".rr"); if (!r.dataset.rid) return r.remove(); ask("이미 등록된 실적입니다. 삭제하고 저장하면 사업별 실적 합계에서도 빠집니다. 삭제할까요?", () => { r.hidden = true; }, "실적 삭제"); });
+const readRows = box => [...box.querySelectorAll(".rr")].map(r => ({ rid:r.dataset.rid, gone:r.hidden, metric:r.querySelector(".rm").value, value:parseFloat(r.querySelector(".rv").value), memo:r.querySelector(".rn").value.trim() }));
+const saveRows = async (sid, rows) => {
+  for (const r of rows) {
+    if (r.rid && r.gone) await db.doc("results/" + r.rid).delete();
+    else if (r.rid) await db.doc("results/" + r.rid).update({ metric:r.metric, value:isNaN(r.value) ? 0 : r.value, memo:r.memo });
+    else if (!r.gone && !isNaN(r.value)) await db.collection("results").add({ metric:r.metric, value:r.value, memo:r.memo, scheduleId:sid, userId:me.id });
+  }
+};
+
+// 완료 처리를 누르면 바로 뜨는 실적 등록 창
+function doneForm(sid) {
+  const s = S.sch.find(x => x.id === sid); if (!s) return;
+  const ms = metricsFor(s.projectId, s.category), old = S.res.filter(r => r.scheduleId === sid);
+  const rows = old.length ? old : ms.map(m => ({ id:"", userId:me.id, metric:m, value:"", memo:"" }));
+  $("#dlg").innerHTML = `<h3>완료 처리 · 실적 등록</h3><div class="m">${esc(pjName(s.projectId))} ${esc(s.title)}</div>
+    <label>실적 (값을 입력한 항목만 등록됩니다)</label><div id="d_res">${rows.map(rrow).join("")}</div>
+    <button id="d_add" type="button">실적 줄 추가</button><div class="er"></div>
+    <div class="foot"><button id="cx" type="button">취소</button><button class="p" id="sv" type="button">완료 처리</button></div>`;
+  const box = $("#d_res");
+  $("#dlg").showModal(); fillSel(box, ms); bindRows(box);
+  $("#cx").onclick = () => $("#dlg").close();
+  $("#d_add").onclick = () => { box.insertAdjacentHTML("beforeend", rrow({ id:"", userId:me.id, metric:"", value:"", memo:"" })); fillSel(box, ms); bindRows(box); };
+  $("#sv").onclick = () => run(async () => {
+    await saveRows(sid, readRows(box));
+    await db.doc("schedules/" + sid).update({ status:"done" });
+    S.open[sid] = true; $("#dlg").close(); toast("완료 처리했습니다.");
+  });
+}
+
+function card(s) {
+  const rs = S.res.filter(r => r.scheduleId === s.id), done = s.status === "done", mem = s.members || [], pn = pjName(s.projectId), open = !!S.open[s.id], tr = tracks(s);
+  const tm = s.time ? s.time + (s.endTime ? "–" + s.endTime : "") : "";
+  return `<div class="card ${done?"done":""}"><div class="row"><div class="grow">
+    <div class="t">${esc(pn || "사업 미지정")} <button class="st ${done?"on":""}" data-tog="${s.id}" aria-expanded="${open}">${done?"✓ 완료됨":"예정"} ${open?"▴":"▾"}</button></div>
+    <div class="m">${esc(s.date)}${tm ? " " + esc(tm) : ""} <span class="tag ct">${esc(s.title)}</span>${s.detail===undefined&&s.category?`<span class="tag">${esc(s.category)}</span>`:""}${mem.length?"참여: "+mem.map(nm).map(esc).join(", "):""}${Object.entries(s.customLists||{}).map(([id,val])=>{const g=extraGroups().find(x=>x.id===id);return g&&val?` <span class="tag">${esc(g.name)}: ${esc(val)}</span>`:""}).join("")}</div>
+    ${s.note?`<div class="m">${esc(s.note)}</div>`:""}</div>
+    <div class="acts"><button class="l" data-edit="${s.id}">수정</button><button class="l d" data-del="${s.id}">삭제</button></div></div>
+    ${open ? `<div class="res ${S.anim === s.id ? "anim" : ""}"><div class="bar" style="margin-bottom:4px"><span class="m">${tr ? "실적 " + rs.length + "건" : "이 분류는 실적을 관리하지 않습니다"}</span><span class="sp"></span><button data-chk="${s.id}">${done?"완료 취소":"완료 처리"}</button></div>
+      ${!tr ? "" : rs.map(r => `<div class="it"><span>${esc(nm(r.userId))} · ${esc(r.metric)} ${esc(r.value)}${r.memo?" · "+esc(r.memo):""}</span>
+        ${(r.userId===me.id||S.canEdit)?`<span><button class="l" data-redit="${r.id}">수정</button><button class="l d" data-rdel="${r.id}">삭제</button></span>`:""}</div>`).join("") || '<div class="m">등록된 실적이 없습니다.</div>'}</div>` : ""}</div>`;
+}
+
+function bindCards() {
+  const each = (sel, f) => document.querySelectorAll(sel).forEach(f);
+  each("[data-chk]", b => b.onclick = () => {
+    const s = S.sch.find(x => x.id === b.dataset.chk); if (!s) return;
+    const rs = S.res.filter(r => r.scheduleId === s.id), set = st => run(() => db.doc("schedules/" + s.id).update({ status:st }));
+    if (s.status !== "done") return tracks(s) ? doneForm(s.id) : set("done");
+    if (!rs.length) return set("planned");
+    ask("완료를 취소하면 이 일정에 등록된 실적 " + rs.length + "건이 삭제되고 사업별 실적에서도 빠집니다. 다시 완료 처리할 때 실적을 새로 등록하게 됩니다. 취소할까요?",
+      () => run(async () => { await Promise.all(rs.map(r => db.doc("results/" + r.id).delete())); await db.doc("schedules/" + s.id).update({ status:"planned" }); toast("완료를 취소하고 실적을 삭제했습니다."); }), "완료 취소");
+  });
+  each("[data-edit]", b => b.onclick = () => schForm(b.dataset.edit));
+  each("[data-del]", b => b.onclick = () => ask("이 일정을 삭제할까요? 등록된 실적도 함께 삭제됩니다.", () => run(async () => {
+    await Promise.all(S.res.filter(r => r.scheduleId === b.dataset.del).map(r => db.doc("results/" + r.id).delete()));
+    await db.doc("schedules/" + b.dataset.del).delete(); toast("일정을 삭제했습니다."); })));
+  each("[data-tog]", b => b.onclick = () => { const k = b.dataset.tog; S.open[k] = !S.open[k]; S.anim = S.open[k] ? k : null; render(); S.anim = null; });
+  each("[data-redit]", b => b.onclick = () => resForm(null, b.dataset.redit));
+  each("[data-rdel]", b => b.onclick = () => ask("이 실적을 삭제하면 사업별 실적 합계에서도 빠집니다. 삭제할까요?", () => run(async () => { await db.doc("results/" + b.dataset.rdel).delete(); toast("실적을 삭제했습니다."); }), "실적 삭제"));
+}
+
+function viewCal() {
+  const [y, m] = S.month.split("-").map(Number), pad = n => String(n).padStart(2, "0"), hol = krHolidays(y);
+  const first = new Date(y, m - 1, 1).getDay(), days = new Date(y, m, 0).getDate(), by = {};
+  S.sch.forEach(s => (by[s.date] = by[s.date] || []).push(s)); Object.values(by).forEach(l => l.sort(byTime));
+  let cells = ["일","월","화","수","목","금","토"].map((w, i) => `<div class="h ${i === 0 ? "sun" : i === 6 ? "sat" : ""}">${w}</div>`).join("");
+  for (let i = 0; i < first; i++) cells += '<div class="d o"></div>';
+  for (let d = 1; d <= days; d++) {
+    const key = `${S.month}-${pad(d)}`, ev = by[key] || [], wk = (first + d - 1) % 7, hn = hol[key], cls = wk === 0 || hn ? "sun" : wk === 6 ? "sat" : "";
+    cells += `<button class="d ${key===S.day?"sel":""} ${key===today()?"today":""} ${cls}" data-day="${key}" aria-label="${m}월 ${d}일${hn ? " " + hn : ""} 일정 ${ev.length}건"><span class="n">${d}</span>${hn ? `<span class="hn">${esc(hn)}</span>` : ""}${ev.slice(0,2).map(s => `<span class="e ${s.status==="done"?"done":""}">${esc((s.time ? s.time + " " : "") + s.title)}</span>`).join("")}${ev.length>2?`<span class="more">+${ev.length-2}</span>`:""}</button>`;
+  }
+  const wd = "일월화수목금토"[new Date(S.day + "T00:00").getDay()], dl = by[S.day] || [], hn2 = krHolidays(+S.day.slice(0, 4))[S.day];
+  $("#body").innerHTML = `<div class="mnav"><button id="pm" aria-label="이전 달">‹</button><strong>${y}년 ${m}월</strong><span><button id="tm">오늘</button> <button id="nm" aria-label="다음 달">›</button></span></div>
+    <div class="cal">${cells}</div>
+    <div class="bar" id="dd" style="margin-top:14px"><strong class="sp">${+S.day.slice(5,7)}월 ${+S.day.slice(8)}일 (${wd})${hn2 ? ` <span style="color:var(--bad)">${esc(hn2)}</span>` : ""}</strong><button class="p" id="addd">이 날 일정 등록</button></div>
+    ${dl.length ? dl.map(card).join("") : '<div class="empty">이 날짜에는 일정이 없습니다.</div>'}`;
+  const go = k => { S.month = k; S.day = k === today().slice(0,7) ? today() : k + "-01"; render(); };
+  const sh = n => { const d = new Date(y, m - 1 + n, 1); return `${d.getFullYear()}-${pad(d.getMonth() + 1)}`; };
+  $("#pm").onclick = () => go(sh(-1)); $("#nm").onclick = () => go(sh(1));
+  $("#tm").onclick = () => { S.month = today().slice(0,7); S.day = today(); render(); };
+  $("#addd").onclick = () => schForm(null, S.day);
+  document.querySelectorAll("[data-day]").forEach(b => b.onclick = () => { S.day = b.dataset.day; render(); $("#dd").scrollIntoView({ block: "nearest" }); });
+  bindCards();
+}
+
+function schForm(id, dd) {
+  const s0 = S.sch.find(x => x.id === id);
+  const s = s0 || { date:dd || today(), time:"", endTime:"", category:"", projectId:"", members:[], note:"" };
+  if (!s0 && S.pjs.length) { s.projectId = S.pjs[0].id; s.category = catsFor(s.projectId)[0] || ""; }
+  const detail = s.detail !== undefined ? s.detail : (s.title || "");
+  const mem = s.members || [], ids = [...S.staff.map(x => x.id), ...mem.filter(x => !S.staff.some(t => t.id === x))];
+  const catSel = (pid, cur) => { const l = catsFor(pid), ex = cur && !l.includes(cur) ? [...l, cur] : l; return (!ex.length || (!cur && s0) ? '<option value=""></option>' : "") + optList(ex, cur); };
+  const withRes = !!s0 && s0.status === "done", old = withRes ? S.res.filter(r => r.scheduleId === id) : [];
+  $("#dlg").innerHTML = `<h3>${id?"일정 수정":"일정 등록"}</h3>
+    <div class="two"><div><label>사업</label><select id="f_p">${s.projectId ? "" : '<option value=""></option>'}${S.pjs.map(p => `<option value="${p.id}" ${p.id === s.projectId ? "selected" : ""}>${esc(p.name)}</option>`).join("")}</select></div>
+    <div><label>탭 (분류)</label><select id="f_c">${catSel(s.projectId, s.category)}</select></div></div>
+    <label>세부 내용 (선택, 제목에 이어 붙습니다)</label><input id="f_t" value="${esc(detail)}" placeholder="예: 스마트 설치">
+    <label>날짜</label><input id="f_d" type="date" value="${esc(s.date)}">
+    <div class="two"><div><label>시작 시간</label><input id="f_s" type="time" value="${esc(s.time)}"></div>
+    <div><label>종료 시간</label><input id="f_e" type="time" value="${esc(s.endTime)}"></div></div>
+    ${extraGroups().map(g => `<label>${esc(g.name)}</label><select data-extra-list="${esc(g.id)}"><option value=""></option>${optList(g.items || [], (s.customLists || {})[g.id] || "")}</select>`).join("")}
+    <label>참여 인원</label><div class="chk">${ids.map(p=>`<label><input type="checkbox" value="${p}" ${mem.includes(p)?"checked":""}>${esc(nm(p))}</label>`).join("") || '<span class="m">아래에서 이름을 추가하세요.</span>'}</div>
+    <div class="opt" style="margin-top:8px"><input id="f_new" placeholder="새 참여자 이름"><button id="f_add" type="button">추가</button></div>
+    <label>메모</label><textarea id="f_n" rows="2">${esc(s.note)}</textarea>
+    ${withRes ? `<div id="f_rw" ${tracks({ projectId:s.projectId, category:s.category }) ? "" : "hidden"}><label>실적 (완료된 일정의 실적 수정)</label><div id="f_res">${old.map(rrow).join("")}</div><button id="f_radd" type="button">실적 줄 추가</button></div>` : ""}
+    <div class="er"></div>
+    <div class="foot"><button id="cx" type="button">취소</button><button class="p" id="sv" type="button">${id?"수정 저장":"일정 등록"}</button></div>`;
+  const fill = () => { const r = $("#f_res"); if (r) fillSel(r, metricsFor($("#f_p").value, $("#f_c").value)); };
+  const sync = () => { fill(); const w = $("#f_rw"); if (w) w.hidden = !tracks({ projectId:$("#f_p").value, category:$("#f_c").value }); };
+  $("#dlg").showModal(); fill(); if ($("#f_res")) bindRows($("#f_res"));
+  $("#f_c").onchange = sync;
+  $("#f_p").onchange = () => { const pid = $("#f_p").value; $("#f_c").innerHTML = catSel(pid, catsFor(pid)[0] || ""); sync(); };
+  $("#cx").onclick = () => $("#dlg").close();
+  if ($("#f_radd")) $("#f_radd").onclick = () => { const b = $("#f_res"); b.insertAdjacentHTML("beforeend", rrow({ id:"", userId:me.id, metric:"", value:"", memo:"" })); fill(); bindRows(b); };
+  $("#f_add").onclick = () => { const v = $("#f_new").value.trim(); if (!v) return;
+    run(async () => { const r = await db.collection("staff").add({ name: v }); const l = document.createElement("label");
+      l.innerHTML = `<input type="checkbox" value="${r.id}" checked>${esc(v)}`; const c = $(".chk"), h = c.querySelector("span.m"); if (h) h.remove(); c.appendChild(l); $("#f_new").value = ""; }); };
+  $("#sv").onclick = () => {
+    const pj = $("#f_p").value, cat = $("#f_c").value, det = $("#f_t").value.trim(), title = [cat, det].filter(Boolean).join(" ") || pjName(pj);
+    const row = { title, detail:det, category:cat, projectId:pj, date:$("#f_d").value, time:$("#f_s").value, endTime:$("#f_e").value, note:$("#f_n").value.trim(),
+      members:[...document.querySelectorAll(".chk input:checked")].map(i => i.value), customLists:Object.fromEntries([...document.querySelectorAll("[data-extra-list]")].map(e => [e.dataset.extraList,e.value]).filter(x => x[1])) };
+    if (!title || !row.date) return msg("사업·탭을 고르거나 내용을 입력하고, 날짜를 입력해 주세요.");
+    const w = $("#f_rw"), res = w && !w.hidden ? readRows($("#f_res")) : [];
+    run(async () => {
+      let sid = id;
+      if (id) await db.doc("schedules/" + id).update(row); else sid = (await db.collection("schedules").add({ ...row, status:"planned", createdBy:me.id })).id;
+      await saveRows(sid, res);
+      if (res.length) S.open[sid] = true;
+      $("#dlg").close();
+    });
+  };
+}
+
+function viewSum() {
+  const all = S.per !== "m", inP = s => all || (s.date || "").startsWith(S.month), lab = s => s.detail ? s.detail : s.title;
+  S.xp = S.xp || {};
+  const sum = (rs, m, f) => rs.filter(r => r.metric === m && (!f || f(r))).reduce((a, r) => a + Number(r.value), 0);
+  const avg = a => a.length ? a.reduce((x, y) => x + y, 0) / a.length : null;
+  const rate = t => avg(t.metrics.filter(m => t.targets[m] > 0).map(m => Math.min(100, sum(t.rs, m) / t.targets[m] * 100)));
+  const groups = [...S.pjs.map(p => ({ id:p.id, name:p.name, p })), { id:"", name:"사업 미지정" }].filter(g => S.pj === "all" || g.id === (S.pj === "none" ? "" : S.pj));
+  const data = groups.map(g => {
+    const base = S.sch.filter(s => s.status === "done" && inP(s) && (s.projectId || "") === g.id && tracks(s)), known = g.p ? tabsOf(g.p) : [];
+    const tabs = known.filter(t => t.track !== false).map(t => ({ key:t.name, label:t.name, real:true, metrics:metricsFor(g.id, t.name), targets:t.targets || {} }));
+    [...new Set(base.map(s => s.category || ""))].filter(c => !known.some(t => t.name === c)).forEach(c => tabs.push({ key:c, label:c || "미분류", real:false, metrics:metricsFor(g.id, c), targets:{} }));
+    tabs.forEach(t => { t.sc = base.filter(s => (s.category || "") === t.key); const ids = new Set(t.sc.map(s => s.id)); t.rs = S.res.filter(r => ids.has(r.scheduleId)); t.rate = rate(t); });
+    return { g, n:base.length, tabs, rate:avg(tabs.map(t => t.rate).filter(x => x !== null)) };
+  }).filter(d => d.tabs.length);
+  const pct = v => v === null ? "목표 미설정" : "전체 달성률 " + Math.round(v) + "%";
+  const grip = '<span class="grip" role="img" aria-label="순서 이동">⋮⋮</span>';
+  const tabHtml = (d, t, no) => {
+    const key = "t:" + d.g.id + "|" + t.key, open = !!S.xp[key];
+    const bars = t.metrics.map(m => { const v = sum(t.rs, m), tg = t.targets[m];
+      if (!(tg > 0)) return `<div class="pb"><div class="lab"><span>${esc(m)} ${v}</span><span class="m">목표 없음</span></div></div>`;
+      const p = Math.round(v / tg * 100);
+      return `<div class="pb"><div class="lab"><span>${esc(m)} ${v} / ${esc(tg)}</span><b>${p}%</b></div><div class="track" role="img" aria-label="${esc(m)} 목표 대비 ${p}%"><i class="${p >= 100 ? "full" : ""}" style="width:${Math.min(100, p)}%"></i></div></div>`; }).join("");
+    const rows = [...t.sc].sort((a, b) => byTime(b, a)).map(s => `<tr><td>${esc(lab(s))}</td><td>${esc(s.date)}</td>${t.metrics.map(m => `<td>${sum(t.rs, m, r => r.scheduleId === s.id)}</td>`).join("")}</tr>`).join("");
+    const table = `<div class="scroll ${S.anim === key ? "anim" : ""}"><table><tr><th>세부 내용</th><th>일자</th>${t.metrics.map(m => `<th>${esc(m)}</th>`).join("")}</tr>
+      <tr class="tot"><td>합계</td><td></td>${t.metrics.map(m => `<td>${sum(t.rs, m)}</td>`).join("")}</tr>${rows}</table></div>`;
+    return `<div class="tb" data-key="${esc(t.key)}"><div class="th" role="button" tabindex="0" aria-expanded="${open}" data-x="${esc(key)}">${t.real ? grip : ""}
+      <div class="grow"><span class="no">${no}</span> <b>${esc(t.label)}</b> <span class="m">${t.rate === null ? "목표 미설정" : "달성률 " + Math.round(t.rate) + "%"}</span></div><span class="chev">${open ? "▴" : "▾"}</span></div>${bars}${open ? table : ""}</div>`;
+  };
+  const projHtml = (d, i) => {
+    const key = "p:" + d.g.id, open = !!S.xp[key], rt = d.tabs.filter(t => t.real), ps = d.tabs.filter(t => !t.real);
+    return `<div class="card pj" data-id="${d.g.id}"><div class="ph" role="button" tabindex="0" aria-expanded="${open}" data-x="${esc(key)}">
+      <div class="grow"><div><span class="no">${i + 1}.</span> <b>${esc(d.g.name)}</b></div><div class="m">실적 관리 대상 ${d.n}건 · ${pct(d.rate)}</div></div><span class="chev">${open ? "▴" : "▾"}</span></div>
+      ${open ? `<div class="kids ${S.anim === key ? "anim" : ""}"><div class="tbox">${rt.map((t, j) => tabHtml(d, t, `${i + 1}-${j + 1}.`)).join("")}</div>${ps.map((t, j) => tabHtml(d, t, `${i + 1}-${rt.length + j + 1}.`)).join("")}</div>` : ""}</div>`;
+  };
+  $("#body").innerHTML = `<div class="bar"><select id="per"><option value="all">전체 기간</option><option value="m">월별</option></select>
+    ${all ? "" : `<input type="month" id="mo" value="${S.month}">`}
+    <select id="fp"><option value="all">전체 사업</option>${S.pjs.map(p => `<option value="${p.id}">${esc(p.name)}</option>`).join("")}<option value="none">사업 미지정</option></select></div>
+    ${data.length ? data.map((d, i) => projHtml(d, i)).join("") : '<div class="empty">완료 처리된 일정이 없거나 실적을 관리하는 탭이 없습니다.</div>'}
+    <p class="m">완료 처리된 일정의 실적만 집계합니다. 사업을 누르면 탭별 달성 막대가, 탭을 누르면 일정별 내용이 펼쳐집니다. 탭의 ⋮⋮ 를 끌어 탭 순서를 바꿀 수 있고, 사업 순서는 설정 &gt; 사업 관리에서 바꿉니다. 달성률은 목표치를 입력한 실적 항목의 달성도(항목별 최대 100%)를 평균한 값입니다.</p>`;
+  $("#per").value = all ? "all" : "m"; $("#fp").value = S.pj;
+  $("#per").onchange = e => { S.per = e.target.value; render(); };
+  if ($("#mo")) $("#mo").onchange = e => { S.month = e.target.value || S.month; render(); };
+  $("#fp").onchange = e => { S.pj = e.target.value; render(); };
+  toggler("xp", "data-x");
+  document.querySelectorAll(".tbox").forEach(box => sortable(box, ".tb", ".th > .grip", items => {
+    const pn = parseInt(box.closest(".pj").querySelector(":scope > .ph .no").textContent);
+    items.forEach((tb, j) => { tb.querySelector(":scope > .th .no").textContent = pn + "-" + (j + 1) + "."; });
+  }, keys => {
+    const pid = box.closest(".pj").dataset.id, p = S.pjs.find(x => x.id === pid); if (!p) return;
+    const tabs = tabsOf(p), full = reorder(tabs.map(t => t.name), tabs.filter(t => t.track !== false).map(t => t.name), keys);
+    run(() => db.doc("projects/" + pid).update({ tabs: full.map(n => tabs.find(t => t.name === n)) }));
+  }));
+}
+
+function projForm(id) {
+  const p = S.pjs.find(x => x.id === id) || { name:"" }, glob = () => opts("metric");
+  const mk = t => ({ name:t.name, track:t.track !== false, rows:(t.metrics && t.metrics.length ? t.metrics : glob()).map(m => ({ m, v:(t.targets || {})[m] ?? "" })) });
+  const tabs = id ? tabsOf(p).map(mk) : [mk({ name:"", metrics:[glob()[0]].filter(Boolean) })];
+  $("#dlg").innerHTML = `<h3>${id?"사업 수정":"사업 추가"}</h3><label>사업명</label><input id="p_n" value="${esc(p.name)}">
+    <label>탭 (분류) · ⋮⋮ 를 끌어 순서를 바꾸고, 탭마다 실적 관리 여부·실적 항목·목표치를 따로 설정합니다</label><div id="p_tabs"></div>
+    <button id="p_add" type="button">탭 추가</button><div class="er"></div>
+    <div class="foot"><button id="cx" type="button">취소</button><button class="p" id="sv" type="button">저장</button></div>`;
+  const read = () => document.querySelectorAll("#p_tabs [data-i]").forEach(el => {
+    const t = tabs[+el.dataset.i], rows = [...el.querySelectorAll(".mr")];
+    t.name = el.querySelector(".tn").value.trim(); t.track = el.querySelector(".tk").checked;
+    if (rows.length || el.querySelector(".ma")) t.rows = rows.map(r => ({ m:r.querySelector(".ms").value, v:r.querySelector(".tt").value }));
+  });
+  const draw = () => {
+    $("#p_tabs").innerHTML = tabs.map((t, i) => `<div class="card" data-i="${i}" style="margin-bottom:8px">
+      <div class="opt"><span class="grip tgrip" role="img" aria-label="순서 이동">⋮⋮</span><input class="tn" value="${esc(t.name)}" placeholder="탭 이름 (예: 현장)"><button class="d tx" type="button">삭제</button></div>
+      <label class="ckl"><input class="tk" type="checkbox" style="width:auto" ${t.track ? "checked" : ""}>이 탭은 실적을 관리합니다</label>
+      ${t.track ? `<label>실적 항목 · 목표치 (목표치를 비우면 목표 없음)</label>${t.rows.map((r, j) => {
+        const used = t.rows.filter((_, k) => k !== j).map(x => x.m), list = glob().filter(m => !used.includes(m)); if (r.m && !list.includes(r.m)) list.unshift(r.m);
+        return `<div class="opt mr" data-j="${j}"><select class="ms">${list.map(m => `<option ${m === r.m ? "selected" : ""}>${esc(m)}</option>`).join("")}</select><input class="tt" type="number" min="0" step="any" value="${esc(r.v)}" placeholder="목표" style="flex:none;width:96px"><button class="d mx" type="button">삭제</button></div>`; }).join("")}<button class="ma" type="button">실적 항목 추가</button>` : ""}</div>`).join("");
+    const card = el => tabs[+el.closest("[data-i]").dataset.i];
+    document.querySelectorAll("#p_tabs .tx").forEach(b => b.onclick = () => { read(); tabs.splice(tabs.indexOf(card(b)), 1); draw(); });
+    document.querySelectorAll("#p_tabs .tk, #p_tabs .ms").forEach(i => i.onchange = () => { read(); draw(); });
+    document.querySelectorAll("#p_tabs .mx").forEach(b => b.onclick = () => { read(); card(b).rows.splice(+b.closest(".mr").dataset.j, 1); draw(); });
+    document.querySelectorAll("#p_tabs .ma").forEach(b => b.onclick = () => { read(); const t = card(b), m = glob().find(x => !t.rows.some(r => r.m === x));
+      if (!m) return msg("추가할 수 있는 실적 항목이 없습니다. 설정 > 공통 목록 관리 > 공통 실적 항목에서 먼저 추가해 주세요.");
+      t.rows.push({ m, v:"" }); draw(); });
+    sortable($("#p_tabs"), ".card", ".tgrip", () => {}, ids => { read(); const arr = ids.map(i => tabs[+i]); tabs.splice(0, tabs.length, ...arr); draw(); });
+  };
+  $("#dlg").showModal(); draw();
+  $("#cx").onclick = () => $("#dlg").close();
+  $("#p_add").onclick = () => { read(); tabs.push(mk({ name:"", metrics:[glob()[0]].filter(Boolean) })); draw(); };
+  $("#sv").onclick = () => {
+    read(); const name = $("#p_n").value.trim(), clean = tabs.filter(t => t.name);
+    if (!name) return msg("사업명을 입력해 주세요.");
+    if (new Set(clean.map(t => t.name)).size !== clean.length) return msg("탭 이름이 겹칩니다.");
+    if (clean.some(t => t.track && !t.rows.some(r => r.m))) return msg("실적을 관리하는 탭에는 실적 항목을 1개 이상 넣어 주세요.");
+    const out = clean.map(t => { const rows = t.rows.filter(r => r.m), targets = {}; rows.forEach(r => { const v = parseFloat(r.v); if (v > 0) targets[r.m] = v; }); return { name:t.name, track:t.track, metrics:rows.map(r => r.m), targets }; });
+    run(async () => { if (id) await db.doc("projects/" + id).update({ name, tabs:out }); else await db.collection("projects").add({ name, tabs:out, order:S.pjs.length }); $("#dlg").close(); });
+  };
+}
+
+function viewSet() {
+  S.sx = S.sx || {};
+  S.listEdit = S.listEdit || {};
+  const isEditingGroup = key => S.listEdit.group === key;
+  const isEditingItem = (key, i) => S.listEdit.item === key + "|" + i;
+  const groupName = (key, fallback) => (S.cfg.groupNames || {})[key] || fallback;
+
+  const renderGroupNameEditor = (key, name, protectedGroup) => isEditingGroup(key)
+    ? `<div class="list-group-tools"><input id="group_name_${esc(key)}" value="${esc(name)}" aria-label="그룹명"><button class="p" data-group-save="${esc(key)}">저장</button><button data-group-cancel="${esc(key)}">취소</button></div>`
+    : `<div class="list-group-tools"><span class="m" style="flex:1">그룹 관리</span><button data-group-edit="${esc(key)}">그룹명 수정</button>${protectedGroup ? '' : `<button class="d" data-group-del="${esc(key)}">그룹 삭제</button>`}</div>`;
+
+  const renderItemRows = (key, arr) => arr.map((name, i) => isEditingItem(key, i)
+    ? `<div class="list-row"><div class="list-edit-row"><input id="item_edit_${i}" value="${esc(name)}" aria-label="항목명"><button class="p" data-item-save="${esc(key)}|${i}">저장</button><button data-item-cancel="${esc(key)}">취소</button></div></div>`
+    : `<div class="list-row"><span class="list-row-name">${esc(name)}</span><div class="list-row-actions"><button data-item-edit="${esc(key)}|${i}">수정</button><button class="d" data-item-del="${esc(key)}|${i}">삭제</button></div></div>`).join("");
+
+  const renderItemsEditor = (key, arr) => `${renderItemRows(key, arr)}<div class="list-add"><input id="newitem_${esc(key)}" placeholder="새 항목명"><button class="p" data-item-add="${esc(key)}">항목 추가</button></div>`;
+
+  const renderGroup = (key, name, count, inner, protectedGroup=false) => {
+    const open = !!S.sx["l:"+key];
+    return `<section class="list-group"><div class="list-group-head" role="button" tabindex="0" data-s="l:${esc(key)}" aria-expanded="${open}"><span class="list-title">${esc(name)}<span class="list-count">${count}</span></span><span class="chev">${open ? "▴" : "▾"}</span></div>${open ? `<div class="list-group-body">${renderGroupNameEditor(key,name,protectedGroup)}${inner}</div>` : ""}</section>`;
+  };
+
+  const staffInner = `${S.staff.map((x,i) => isEditingItem("staff",i)
+    ? `<div class="list-row"><div class="list-edit-row"><input id="staff_edit_${esc(x.id)}" value="${esc(x.name)}"><button class="p" data-staff-save="${esc(x.id)}">저장</button><button data-staff-cancel="${esc(x.id)}">취소</button></div></div>`
+    : `<div class="list-row"><span class="list-row-name">${esc(x.name)}</span><div class="list-row-actions"><button data-staff-edit="${i}">수정</button><button class="d" data-sd="${esc(x.id)}">삭제</button></div></div>`).join("") || '<p class="m">등록된 인원이 없습니다.</p>'}
+    <div class="list-add"><input id="n_staff" placeholder="이름"><button class="p" id="sa">인원 추가</button></div>`;
+
+  const groups = [
+    renderGroup("staff",groupName("staff","참여 인원"),`${S.staff.length}명`,staffInner,true),
+    renderGroup("metric",groupName("metric","공통 실적 항목"),`${opts("metric").length}개`,renderItemsEditor("metric",opts("metric")),true),
+    renderGroup("category",groupName("category","공통 분류 목록"),`${opts("category").length}개`,renderItemsEditor("category",opts("category")),true),
+    ...extraGroups().map(g=>renderGroup(g.id,g.name,`${(g.items||[]).length}개`,renderItemsEditor(g.id,g.items||[]),false))
+  ].join("");
+
+  $("#body").innerHTML = `<div class="sect"><h3>사업 관리</h3>
+    <div id="prbox">${S.pjs.map((p, i) => `<div class="opt prow" data-id="${p.id}"><span class="grip" role="img" aria-label="순서 이동">⋮⋮</span><span class="grow"><span class="no">${i + 1}.</span> <b>${esc(p.name)}</b><br><span class="m">탭: ${tabsOf(p).map(t => esc(t.name) + (t.track === false ? "(실적 제외)" : "")).join(", ") || "없음"}</span></span><button data-pe="${p.id}">수정</button><button class="d" data-pd="${p.id}">삭제</button></div>`).join("") || '<p class="m">등록된 사업이 없습니다.</p>'}</div>
+    ${S.pjs.length > 1 ? '<p class="m">⋮⋮ 를 끌어 사업 순서를 바꾸면 일정 등록, 필터, 사업별 실적의 순서에도 똑같이 반영됩니다.</p>' : ""}<button class="p" id="pa">사업 추가</button></div>
+    <section class="sect"><h3>공통 목록 관리</h3><div class="list-manager">${groups}
+      <div class="list-manager-add"><b>새 목록 그룹 추가</b><div class="list-add"><input id="new_group_name" placeholder="예: 장비 종류"><button class="p" id="new_group_add">그룹 추가</button></div><p class="hint">추가한 목록은 일정 등록 화면에서 선택할 수 있습니다.</p></div>
+    </div></section>`;
+
+  const each = (sel, f) => document.querySelectorAll(sel).forEach(f);
+  toggler("sx", "data-s");
+  if ($("#prbox .prow")) sortable($("#prbox"), ".prow", ".grip", items => items.forEach((r, i) => { r.querySelector(".no").textContent = (i + 1) + "."; }),
+    ids => run(async () => { for (let i = 0; i < ids.length; i++) if ((S.pjs.find(p => p.id === ids[i]) || {}).order !== i) await db.doc("projects/" + ids[i]).update({ order:i }); }));
+  $("#pa").onclick = () => projForm();
+  each("[data-pe]", b => b.onclick = () => projForm(b.dataset.pe));
+  each("[data-pd]", b => b.onclick = () => ask("이 사업을 삭제할까요? 연결된 일정은 사업 미지정으로 남습니다.", () => run(() => db.doc("projects/" + b.dataset.pd).delete())));
+
+  $("#sa").onclick = () => { const v=$("#n_staff").value.trim(); if(!v)return msg("이름을 입력해 주세요."); if(S.staff.some(x=>x.name.toLowerCase()===v.toLowerCase()))return msg("이미 등록된 이름입니다."); clearDraft("n_staff"); run(()=>db.collection("staff").add({name:v})); };
+  each("[data-staff-edit]", b => b.onclick = () => { S.listEdit.item="staff|"+b.dataset.staffEdit; render(); });
+  each("[data-staff-save]", b => b.onclick = () => { const id=b.dataset.staffSave, v=$("#staff_edit_"+CSS.escape(id)).value.trim(); if(!v)return msg("이름을 입력해 주세요."); if(S.staff.some(x=>x.id!==id&&x.name.toLowerCase()===v.toLowerCase()))return msg("이미 등록된 이름입니다."); clearDraft("staff_edit_"+id); S.listEdit={}; run(()=>db.doc("staff/"+id).update({name:v})); });
+  each("[data-staff-cancel]", b => b.onclick = () => { clearDraft("staff_edit_"+b.dataset.staffCancel); S.listEdit={}; render(); });
+  each("[data-sd]", b => b.onclick = () => ask("이 참여 인원을 삭제할까요?",()=>run(()=>db.doc("staff/"+b.dataset.sd).delete())));
+
+  each("[data-group-edit]", b => b.onclick = e => { e.stopPropagation(); S.listEdit.group=b.dataset.groupEdit; S.sx["l:"+b.dataset.groupEdit]=true; render(); });
+  each("[data-group-cancel]", b => b.onclick = () => { clearDraft("group_name_"+b.dataset.groupCancel); S.listEdit.group=null; render(); });
+  each("[data-group-save]", b => b.onclick = () => { const key=b.dataset.groupSave, v=$("#group_name_"+CSS.escape(key)).value.trim(); if(!v)return msg("그룹명을 입력해 주세요."); const names=[groupName("staff","참여 인원"),groupName("metric","공통 실적 항목"),groupName("category","공통 분류 목록"),...extraGroups().filter(g=>g.id!==key).map(g=>g.name)]; if(names.some(n=>n.toLowerCase()===v.toLowerCase()))return msg("같은 이름의 목록이 이미 있습니다."); clearDraft("group_name_"+key); S.listEdit.group=null; if(["staff","metric","category"].includes(key))saveConfig({groupNames:{...(S.cfg.groupNames||{}),[key]:v}}); else saveConfig({extraGroups:extraGroups().map(g=>g.id===key?{...g,name:v}:g)}); });
+  each("[data-group-del]", b => b.onclick = () => ask("이 목록 그룹과 내부 항목을 삭제할까요? 이미 저장된 일정의 값은 기록으로 남습니다.",()=>saveConfig({extraGroups:extraGroups().filter(g=>g.id!==b.dataset.groupDel)})));
+  $("#new_group_add").onclick = () => { const name=$("#new_group_name").value.trim(); if(!name)return msg("새 목록 이름을 입력해 주세요."); const names=[groupName("staff","참여 인원"),groupName("metric","공통 실적 항목"),groupName("category","공통 분류 목록"),...extraGroups().map(g=>g.name)]; if(names.some(x=>x.toLowerCase()===name.toLowerCase()))return msg("같은 이름의 목록이 이미 있습니다."); const id="list_"+Date.now().toString(36); clearDraft("new_group_name"); saveConfig({extraGroups:[...extraGroups(),{id,name,items:[]}]}); S.sx["l:"+id]=true; };
+
+  each("[data-item-add]", b => b.onclick=()=>{const key=b.dataset.itemAdd, input=$("#newitem_"+CSS.escape(key)), v=input.value.trim(); if(!v)return msg("항목명을 입력해 주세요."); const arr=key==="metric"||key==="category"?opts(key):(extraGroups().find(g=>g.id===key)||{}).items||[]; if(arr.some(x=>String(x).toLowerCase()===v.toLowerCase()))return msg("이미 등록된 항목입니다."); clearDraft("newitem_"+key); if(key==="metric"||key==="category")saveConfig({[key]:[...arr,v]}); else saveConfig({extraGroups:extraGroups().map(g=>g.id===key?{...g,items:[...(g.items||[]),v]}:g)}); });
+  each("[data-item-edit]", b => b.onclick=()=>{const [key,i]=b.dataset.itemEdit.split("|"); S.listEdit.item=key+"|"+i; render();});
+  each("[data-item-cancel]", b => b.onclick=()=>{const key=b.dataset.itemCancel; const i=(S.listEdit.item||"").split("|")[1]; clearDraft("item_edit_"+i); S.listEdit.item=null; render();});
+  each("[data-item-save]", b => b.onclick=()=>{const [key,i]=b.dataset.itemSave.split("|"), v=$("#item_edit_"+i).value.trim(); if(!v)return msg("항목명을 입력해 주세요."); const arr=(key==="metric"||key==="category"?opts(key):(extraGroups().find(g=>g.id===key)||{}).items||[]).slice(); if(arr.some((x,j)=>j!==+i&&x.toLowerCase()===v.toLowerCase()))return msg("중복된 항목명입니다."); arr[+i]=v; clearDraft("item_edit_"+i); S.listEdit.item=null; if(key==="metric"||key==="category")saveConfig({[key]:arr}); else saveConfig({extraGroups:extraGroups().map(g=>g.id===key?{...g,items:arr}:g)}); });
+  each("[data-item-del]", b => b.onclick=()=>{const [key,i]=b.dataset.itemDel.split("|"); ask("이 항목을 삭제할까요? 기존 일정에 저장된 값은 기록으로 남습니다.",()=>{const arr=(key==="metric"||key==="category"?opts(key):(extraGroups().find(g=>g.id===key)||{}).items||[]).filter((_,j)=>j!==+i); if(key==="metric"||key==="category")saveConfig({[key]:arr}); else saveConfig({extraGroups:extraGroups().map(g=>g.id===key?{...g,items:arr}:g)});});});
+}
+
+
+// 모든 함수와 상수 선언이 끝난 뒤 데모 화면을 초기화합니다.
+initDemo();
+</script>
+</body>
+</html>
